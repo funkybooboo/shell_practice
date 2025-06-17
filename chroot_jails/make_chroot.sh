@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Defaults ---
+# --- Config ---
 DRY_RUN=false
 VERBOSE=false
+ENTER_AFTER_BUILD=false
 CONFIG_FILE=""
 JAILROOT=""
 BINARIES=()
-MOUNT_PROC=false
-MOUNT_SYS=false
-MOUNT_DEV=false
+declare -A COPIED_LIBS
 
 log() { echo "[*] $*"; }
 logv() { $VERBOSE && echo "[v] $*"; }
 run() { $DRY_RUN && echo "(dry-run) $*" || eval "$*"; }
-
 die() { echo "[!] $*" >&2; exit 1; }
 
 check_dependencies() {
-  for cmd in chroot ldd cp bash mknod mkdir realpath; do
+  for cmd in chroot ldd cp bash mkdir realpath; do
     command -v "$cmd" >/dev/null || die "Missing required command: $cmd"
   done
 }
@@ -30,6 +28,16 @@ parse_config() {
   JAILROOT="$(realpath "$JAIL_ROOT")"
 }
 
+copy_library_once() {
+  local lib="$1"
+  [[ -e "$lib" ]] || return 0
+  [[ -n "${COPIED_LIBS["$lib"]+1}" ]] && return 0
+  COPIED_LIBS["$lib"]=1
+  local dest="$JAILROOT$lib"
+  run mkdir -p "$(dirname "$dest")"
+  run cp "$lib" "$dest"
+}
+
 copy_binary_and_deps() {
   local bin="$1"
   [[ -x "$bin" ]] || bin="$(command -v "$bin" 2>/dev/null || true)"
@@ -37,47 +45,38 @@ copy_binary_and_deps() {
   local dest="$JAILROOT$bin"
   run mkdir -p "$(dirname "$dest")"
   run cp "$bin" "$dest"
-  ldd "$bin" | awk '/=>/ {print $3} /^\/lib/ {print $1}' | while read lib; do
-    [[ -e "$lib" ]] || continue
-    local dlib="$JAILROOT$lib"
-    run mkdir -p "$(dirname "$dlib")"
-    run cp "$lib" "$dlib"
+
+  ldd "$bin" | awk '/=>/ { print $3 } /^\/lib/ { print $1 }' | grep -v '^$' | while read -r lib; do
+    copy_library_once "$lib"
   done
+
+  local loader
+  loader="$(ldd "$bin" | awk '/ld-linux/ { print $1 }')"
+  if [[ -n "$loader" && -e "$loader" ]]; then
+    copy_library_once "$loader"
+  else
+    echo "[!] WARNING: dynamic loader not found for $bin"
+  fi
 }
 
-setup_etc() {
-  run mkdir -p "$JAILROOT/etc"
-  echo "root:x:0:0:root:/root:/bin/bash" | run tee "$JAILROOT/etc/passwd" >/dev/null
-  echo "root:x:0:" | run tee "$JAILROOT/etc/group" >/dev/null
-}
-
-setup_dev() {
-  log "Creating minimal /dev"
-  run mkdir -p "$JAILROOT/dev"
-  run mknod -m 666 "$JAILROOT/dev/null" c 1 3
-  run mknod -m 666 "$JAILROOT/dev/zero" c 1 5
-  run mknod -m 666 "$JAILROOT/dev/tty" c 5 0
-  run mknod -m 666 "$JAILROOT/dev/random" c 1 8
-  run mknod -m 666 "$JAILROOT/dev/urandom" c 1 9
-}
-
-mount_fs() {
-  $MOUNT_PROC && run mount --bind /proc "$JAILROOT/proc"
-  $MOUNT_SYS  && run mount --bind /sys  "$JAILROOT/sys"
-  $MOUNT_DEV  && run mount --bind /dev  "$JAILROOT/dev"
+enter_jail() {
+  echo
+  log "Launching into jail: $JAILROOT"
+  exec sudo chroot "$JAILROOT" /bin/bash
 }
 
 usage() {
-  echo "Usage: $0 -c jail.conf [--dry-run] [--verbose]"
+  echo "Usage: $0 -c jail.conf [--dry-run] [--verbose] [--enter]"
   exit 1
 }
 
-# --- Parse args ---
+# --- CLI args ---
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c|--config) CONFIG_FILE="$2"; shift ;;
     --dry-run) DRY_RUN=true ;;
     --verbose) VERBOSE=true ;;
+    --enter) ENTER_AFTER_BUILD=true ;;
     *) usage ;;
   esac
   shift
@@ -85,6 +84,7 @@ done
 
 [[ -n "$CONFIG_FILE" ]] || usage
 
+# --- Workflow ---
 check_dependencies
 parse_config
 
@@ -98,9 +98,7 @@ for bin in "${BINARIES[@]}"; do
   copy_binary_and_deps "$bin"
 done
 
-setup_etc
-setup_dev
-mount_fs
-
 log "Jail created at: $JAILROOT"
 log "To enter: sudo chroot $JAILROOT /bin/bash"
+
+$ENTER_AFTER_BUILD && enter_jail
