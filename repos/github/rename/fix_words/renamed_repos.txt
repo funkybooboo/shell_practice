@@ -1,0 +1,17 @@
+quizzer,quizzer
+vidly,vidly
+checkers,checkers
+caesercipher,caeser_cipher
+tictactoegui,tictactoe_gui
+recursionexercises,recursion_exercises
+monstergame,monster_game
+sudokusolver,sudoku_solver
+termanalcommunication,termanal_communication
+computertalks,computer_talks
+quicksort,quick_sort
+decimaltofraction,decimal_to_fraction
+inserstionsort,inserstion_sort
+soundofpi,sound_of_pi
+rockpaperscissors,rock_paper_scissors
+tictactoe,tictactoe
+guessthenumbervs,guess_the_number_vs
