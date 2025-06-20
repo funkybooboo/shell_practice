@@ -14,6 +14,14 @@
 #   -b  Branch name to merge (default: main), or "*" to merge all branches
 #   -R  Remote name for the child repo (default: child_remote)
 
+set -euo pipefail
+
+# refuse to run if there are unstaged or uncommitted changes:
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "❌ Working tree is dirty—please commit or stash before merging." >&2
+    exit 1
+fi
+
 usage() {
     echo "Usage: $0 -P <parent_repo_path> -C <child_repo_url> -p <subfolder> [-b <branch|*>] [-R <child_remote_name>]"
     exit 1

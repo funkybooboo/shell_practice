@@ -22,6 +22,14 @@
 
 # ------ ARGUMENTS & VALIDATION ------
 
+set -euo pipefail
+
+# refuse to run if there are unstaged or uncommitted changes:
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "❌ Working tree is dirty—please commit or stash before merging." >&2
+    exit 1
+fi
+
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
     echo "Usage: $0 <repos_list.txt> [parent_repo_path]"
     exit 1
@@ -41,8 +49,8 @@ if [ ! -d "$parent_repo_path" ]; then
 fi
 
 # Ensure merge_subtree.sh is in same directory or PATH
-if ! command -v merge_repo.sh >/dev/null 2>&1; then
-    echo "Error: merge_repo.sh not found in PATH."
+if ! command -v ./merge_repo.sh >/dev/null 2>&1; then
+    echo "Error: ./merge_repo.sh not found in PATH."
     exit 1
 fi
 
@@ -69,7 +77,7 @@ while IFS= read -r url; do
     echo
 
     # invoke your existing merge_repo.sh
-    merge_repo.sh \
+    ./merge_repo.sh \
         -P "$parent_repo_path" \
         -C "$url" \
         -p "$repo_name" \
@@ -77,7 +85,7 @@ while IFS= read -r url; do
         -R "$remote_alias"
 
     if [ $? -ne 0 ]; then
-        echo "Error: merge_repo.sh failed for '$repo_name'."
+        echo "Error: ./merge_repo.sh failed for '$repo_name'."
         exit 1
     fi
 

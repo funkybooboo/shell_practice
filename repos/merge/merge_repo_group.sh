@@ -19,7 +19,15 @@
 #   -g  Group folder name (e.g. "mtech") which will prefix each repo's subfolder
 #   -P  Parent repository path (destination repo); defaults to "." if not given
 #   -b  Branch to merge from; defaults to "main"
-#
+
+set -euo pipefail
+
+# refuse to run if there are unstaged or uncommitted changes:
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "❌ Working tree is dirty—please commit or stash before merging." >&2
+    exit 1
+fi
+
 usage() {
     echo "Usage: $0 -l <list_file> -p <pattern> -g <group_folder> [-P <parent_repo_path>] [-b <branch>]"
     exit 1
