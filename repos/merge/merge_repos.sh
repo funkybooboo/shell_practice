@@ -41,8 +41,8 @@ if [ ! -d "$parent_repo_path" ]; then
 fi
 
 # Ensure merge_subtree.sh is in same directory or PATH
-if ! command -v merge_subtree.sh >/dev/null 2>&1; then
-    echo "Error: merge_subtree.sh not found in PATH."
+if ! command -v merge_repo.sh >/dev/null 2>&1; then
+    echo "Error: merge_repo.sh not found in PATH."
     exit 1
 fi
 
